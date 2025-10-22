@@ -1,145 +1,45 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>PA#1 – 3D Richmond Surface</title>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+
+<title>PA#1</title>
 <style>
     body {
-        margin: 0;
-        font-family: "Segoe UI", Roboto, Arial, sans-serif;
-        background: linear-gradient(135deg, #1a0033, #3a0ca3, #7209b7);
-        color: #f0eaff;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-start;
-        height: 100vh;
-    }
-
-    h2 {
-        margin-top: 20px;
-        font-size: 28px;
-        letter-spacing: 1px;
-        text-align: center;
-        color: #ff9eeb;
-        text-shadow: 0 0 10px rgba(255, 158, 235, 0.7);
-    }
-
-    #message {
-        margin: 10px 0 20px;
-        text-align: center;
-        font-size: 16px;
-        color: #e0d5ff;
-    }
-
-    #controls {
-        margin: 10px 0 15px;
-        padding: 15px 22px;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 12px;
-        display: flex;
-        gap: 15px;
-        align-items: center;
-        box-shadow: 0 0 20px rgba(160, 0, 255, 0.2);
-    }
-
-    #controls label {
-        font-size: 15px;
-        color: #ffd6ff;
-        margin-right: 5px;
-    }
-
-    #controls input {
-        width: 70px;
-        padding: 6px;
-        border-radius: 6px;
-        border: 1px solid rgba(255,255,255,0.2);
-        text-align: center;
-        background: rgba(255,255,255,0.1);
-        color: #fff;
-        font-size: 15px;
-        outline: none;
-        transition: background 0.3s ease;
-    }
-
-    #controls input:focus {
-        background: rgba(255,255,255,0.25);
-    }
-
-    #controls button {
-        padding: 8px 18px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        background: linear-gradient(135deg, #7209b7, #f72585);
-        color: #fff;
-        font-weight: bold;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    #controls button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 0 15px rgba(247, 37, 133, 0.8);
-    }
-
-    #canvas-holder {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-grow: 1;
-        width: 100%;
-    }
-
-    canvas {
-        background-color: #150024;
-        border-radius: 14px;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.6);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-
-    canvas:hover {
-        transform: scale(1.02);
-        box-shadow: 0 12px 35px rgba(255, 0, 200, 0.4);
+        background-color: #EEEEEE;
     }
 </style>
+<script id="vertex-shader" type="x-shader/x-vertex"> … </script>
+<script id="fragment-shader" type="x-shader/x-fragment"> … </script>
 
 <script src="./Utils/trackball-rotator.js"></script>
 <script src="./Utils/m4.js"></script>
 <script src="./shader.gpu"></script>
+<script src="./Model.js"></script>
 <script src="./main.js"></script>
-<script>
-    // Оновлення поверхні після зміни параметрів
-    function updateSurface() {
-        let rMin = parseFloat(document.getElementById("rMin").value);
-        let rMax = parseFloat(document.getElementById("rMax").value);
 
-        window.rMin = rMin;
-        window.rMax = rMax;
-
-        surface.BufferData(CreateSurfaceData());
-        draw();
-    }
-</script>
 </head>
 <body onload="init()">
 
-    <h2>Interactive 3D Richmond Surface</h2>
-    <p id="message">Use your mouse (or finger) to rotate the surface in 3D space.</p>
+<h2>A Cube with "Trackball" Mouse Rotation</h2>
 
-    <div id="controls">
-        <label for="rMin">r<sub>min</sub>:</label>
-        <input type="number" id="rMin" value="0.25" min="0" step="0.05">
+<p id="message">Drag your mouse on the cube to rotate it.<br>
+(On a touch screen, you can use your finger.)</p>
 
-        <label for="rMax">r<sub>max</sub>:</label>
-        <input type="number" id="rMax" value="1.25" min="0.5" step="0.05">
+<div style="margin-bottom: 10px;">
+  <label for="sliderR">Granularity U (dr): </label>
+  <input type="range" id="sliderR" min="0.05" max="0.5" step="0.01" value="0.1">
+  <span id="valR">0.1</span>
 
-        <button onclick="updateSurface()">Update</button>
-    </div>
+  <br>
 
-    <div id="canvas-holder">
-       <canvas width="600" height="600" id="webglcanvas"></canvas>
-    </div>
+  <label for="sliderTheta">Granularity V (dTheta): </label>
+  <input type="range" id="sliderTheta" min="0.1" max="1.0" step="0.05" value="0.2">
+  <span id="valTheta">0.2</span>
+</div>
 
-</body>
-</html>
+<div id="canvas-holder">
+   <canvas width="600" height="600" id="webglcanvas" style="background-color:red"></canvas>
+</div>
+
+
+</body></html>

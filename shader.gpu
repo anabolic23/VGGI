@@ -1,23 +1,49 @@
-// Vertex shader 
+/* shader.gpu.js
+   Exports two globals: vertexShaderSource, fragmentShaderSource
+*/
+
 const vertexShaderSource = `
 attribute vec3 vertex;
 attribute vec3 normal;
+attribute vec3 tangent;
+attribute vec2 tex;
 
-uniform mat4 ModelViewMatrix;          // model-view (eye) matrix
+uniform mat4 ModelViewMatrix;
 uniform mat4 ModelViewProjectionMatrix;
-uniform mat3 NormalMatrix;             // inverse-transpose of ModelViewMatrix upper-left 3x3
+uniform mat3 NormalMatrix;
 
-varying vec3 vNormalEye;               // normal in eye space
-varying vec3 vPositionEye;             // position in eye space
+varying vec3 vT_eye;
+varying vec3 vN_eye;
+varying vec3 vB_eye;
+varying vec2 vUV;
+varying vec3 vPosEye;
 
 void main() {
-    vec4 posEye = ModelViewMatrix * vec4(vertex, 1.0);
-    vPositionEye = posEye.xyz;
-    vNormalEye = normalize(NormalMatrix * normal);
-    gl_Position = ModelViewProjectionMatrix * vec4(vertex, 1.0);
-}`;
+    // position in eye space
+    vec4 posEye4 = ModelViewMatrix * vec4(vertex, 1.0);
+    vPosEye = posEye4.xyz;
 
-// Fragment shader (Phong shading per-pixel)
+    // transform normal & tangent to eye space (as vectors)
+    vec3 N_eye = normalize( NormalMatrix * normal );
+    vec3 T_eye = normalize( NormalMatrix * tangent );
+
+    // Gram-Schmidt orthogonalization with PRIORITY = TANGENT:
+    // keep T as primary, orthogonalize N w.r.t T
+    T_eye = normalize(T_eye);
+    N_eye = normalize( N_eye - dot(N_eye, T_eye) * T_eye );
+
+    // compute bitangent (B) as cross(T, N)
+    vec3 B_eye = normalize( cross(T_eye, N_eye) );
+
+    vT_eye = T_eye;
+    vN_eye = N_eye;
+    vB_eye = B_eye;
+    vUV = tex;
+
+    gl_Position = ModelViewProjectionMatrix * vec4(vertex, 1.0);
+}
+`;
+
 const fragmentShaderSource = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
   precision highp float;
@@ -25,36 +51,54 @@ const fragmentShaderSource = `
   precision mediump float;
 #endif
 
-varying vec3 vNormalEye;
-varying vec3 vPositionEye;
+varying vec3 vT_eye;
+varying vec3 vN_eye;
+varying vec3 vB_eye;
+varying vec2 vUV;
+varying vec3 vPosEye;
 
-uniform vec3 uLightPosEye;       // light position in eye space
-uniform vec3 uAmbientColor;      // ambient light color/intensity
-uniform vec3 uLightColor;        // diffuse/specular light color
-uniform float uShininess;        // specular shininess
-uniform vec3 uSpecularColor;     // specular color (or intensity)
-uniform vec3 uMaterialDiffuse;   // material diffuse color
+uniform sampler2D uDiffuseTex;
+uniform sampler2D uSpecularTex;
+uniform sampler2D uNormalMap;
+
+uniform vec3 uLightPosEye;
+uniform vec3 uAmbientColor;
+uniform vec3 uLightColor;
+uniform float uShininess;
 
 void main() {
-    vec3 N = normalize(vNormalEye);
-    vec3 L = normalize(uLightPosEye - vPositionEye);
+    // read textures
+    vec3 diffCol = texture2D(uDiffuseTex, vUV).rgb;
+    vec3 specCol = texture2D(uSpecularTex, vUV).rgb;
 
-    // viewer direction: use approximation (0,0,1) in eye space as allowed by hint
-    vec3 V = normalize(vec3(0.0, 0.0, 1.0));
+    // normal map in tangent space (sampled in [0,1])
+    vec3 nmap = texture2D(uNormalMap, vUV).rgb;
+    vec3 n_ts = normalize(nmap * 2.0 - 1.0); // map to [-1,1]
 
-    float lambert = max(dot(N, L), 0.0);
+    // reconstruct normal in eye space using TBN matrix
+    mat3 TBN = mat3(
+        normalize(vT_eye),
+        normalize(vB_eye),
+        normalize(vN_eye)
+    );
+    vec3 N_eye = normalize( TBN * n_ts );
 
-    // Blinn-Phong (using half-vector) or classic Phong reflect() - we'll use reflect()
-    vec3 R = reflect(-L, N);
+    // lighting vectors
+    vec3 L = normalize(uLightPosEye - vPosEye);
+    vec3 V = normalize(-vPosEye); // viewer direction in eye space
+    vec3 H = normalize(L + V); // half vector for Blinn-Phong
+
+    float lambert = max(dot(N_eye, L), 0.0);
     float spec = 0.0;
     if (lambert > 0.0) {
-        spec = pow(max(dot(R, V), 0.0), uShininess);
+        spec = pow(max(dot(N_eye, H), 0.0), uShininess);
     }
 
-    vec3 ambient = uAmbientColor * uMaterialDiffuse;
-    vec3 diffuse = uLightColor * uMaterialDiffuse * lambert;
-    vec3 specular = uSpecularColor * spec;
+    vec3 ambient = uAmbientColor * diffCol;
+    vec3 diffuse = uLightColor * diffCol * lambert;
+    vec3 specular = uLightColor * specCol * spec;
 
     vec3 color = ambient + diffuse + specular;
     gl_FragColor = vec4(color, 1.0);
-}`;
+}
+`;

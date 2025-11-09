@@ -1,158 +1,70 @@
-
-
-function deg2rad(angle) {
-    return angle * Math.PI / 180;
-}
-
-// p: an array of xyz vertex coords
-// t: an array of uv tex coords
-function Vertex(p)
-{
-    this.p = p;
-    this.normal = [];
-    this.triangles = [];
-}
-
-function Triangle(v0, v1, v2)
-{
-    this.v0 = v0;
-    this.v1 = v1;
-    this.v2 = v2;
-    this.normal = [];
-    this.tangent = [];
-}
-
-// // Model Constructor function
-// function Model(name) {
-//     this.name = name;
-//     this.iVertexBuffer = gl.createBuffer();
-//     this.iIndexBuffer = gl.createBuffer();
-//     this.count = 0;
-
-//     this.BufferData = function(vertices, indices) {
-
-//         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-//         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
-//         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-//         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-
-//         this.count = indices.length;
-//     }
-
-//     this.Draw = function() {
-
-//         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-//         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
-//         gl.enableVertexAttribArray(shProgram.iAttribVertex);
-
-//         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-
-//         //gl.drawArrays(gl.LINE_STRIP, 0, this.count);
-//         gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_SHORT, 0);
-//     }
-// }
-
-// Model Constructor function
 function Model(name) {
     this.name = name;
-    this.iVertexBuffer = gl.createBuffer();
-    this.iIndexBuffer = gl.createBuffer();
+
+    this.iVertexBuffer     = gl.createBuffer();
+    this.iNormalBuffer     = gl.createBuffer();
+    this.iTangentBuffer    = gl.createBuffer();
+    this.iTexCoordsBuffer  = gl.createBuffer();
+    this.iIndexBuffer      = gl.createBuffer();
     this.count = 0;
 
-    // vertices expected as Float32Array interleaved: x,y,z, nx,ny,nz
-    this.BufferData = function(verticesInterleaved, indices) {
+    this.idTextureDiffuse  = null;
+    this.idTextureSpecular = null;
+    this.idTextureNormal   = null;
+
+    this.BufferData = function(verticesF32, normalsF32, tangentsF32, texcoordsF32, indicesU16) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, verticesInterleaved, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, verticesF32, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, normalsF32, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, tangentsF32, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTexCoordsBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, texcoordsF32, gl.STATIC_DRAW);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indicesU16, gl.STATIC_DRAW);
 
-        this.count = indices.length;
-    }
+        this.count = indicesU16.length;
+    };
 
     this.Draw = function() {
+        if (this.idTextureDiffuse) {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, this.idTextureDiffuse);
+        }
+        if (this.idTextureSpecular) {
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, this.idTextureSpecular);
+        }
+        if (this.idTextureNormal) {
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, this.idTextureNormal);
+        }
+
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        // stride = 6 floats = 24 bytes
-        const stride = 6 * Float32Array.BYTES_PER_ELEMENT;
-        // vertex position at offset 0
-        gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, stride, 0);
+        gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribVertex);
-        // normal at offset 3 floats
-        gl.vertexAttribPointer(shProgram.iAttribNormal, 3, gl.FLOAT, false, stride, 3 * Float32Array.BYTES_PER_ELEMENT);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribNormal);
 
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribTangent, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribTangent);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTexCoordsBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribTexCoords, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribTexCoords);
+
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-
         gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_SHORT, 0);
-    }
+    };  
 }
-
-// function CreateSurfaceData(data)
-// {
-//     let vertices = [];
-//     let triangles = [];
-
-//     for (let i=0, ang = 0; i<72; i++, ang+=5) {
-//         // TODO: replace with your equation
-//         vertices.push( new Vertex( [Math.sin(deg2rad(ang)), 0, Math.cos(deg2rad(ang))] ));
-//     }
-
-//     for (let i=0, ang = 0; i<72; i++, ang+=5) {
-
-//         // TODO: replace with your equation
-//         let v0ind = vertices.length;
-//         vertices.push( new Vertex( [Math.sin(deg2rad(ang)), 1, Math.cos(deg2rad(ang))] ));
-
-//         // v0    v2 
-//         //   o - o
-//         //   | \ |
-//         //   o - o
-//         // v3     v1
-
-//         if (i > 0)
-//         {
-//             let v1ind = v0ind - 72 -1;
-//             let v2ind = v0ind - 1;
-//             let v3ind = v0ind - 72;
-
-//             let trian = new Triangle(v0ind, v1ind, v2ind);
-//             let trianInd = triangles.length;
-
-//             triangles.push( trian );
-//             vertices[v0ind].triangles.push(trianInd);
-//             vertices[v1ind].triangles.push(trianInd);
-//             vertices[v2ind].triangles.push(trianInd);
-
-//             let trian2 = new Triangle(v0ind, v3ind, v1ind);
-//             let trianInd2 = triangles.length;
-
-//             triangles.push( trian2 );
-//             vertices[v0ind].triangles.push(trianInd2);
-//             vertices[v3ind].triangles.push(trianInd2);
-//             vertices[v1ind].triangles.push(trianInd2);
-
-//         }
-
-//     }
-
-//     data.verticesF32 = new Float32Array(vertices.length*3);
-//     for (let i=0, len=vertices.length; i<len; i++)
-//     {
-//         data.verticesF32[i*3 + 0] = vertices[i].p[0];
-//         data.verticesF32[i*3 + 1] = vertices[i].p[1];
-//         data.verticesF32[i*3 + 2] = vertices[i].p[2];
-//     }
-
-//     data.indicesU16 = new Uint16Array(triangles.length*3);
-//     for (let i=0, len=triangles.length; i<len; i++)
-//     {
-//         data.indicesU16[i*3 + 0] = triangles[i].v0;
-//         data.indicesU16[i*3 + 1] = triangles[i].v1;
-//         data.indicesU16[i*3 + 2] = triangles[i].v2;
-//     }
-
-// }
 
 function CreateSurfaceData(data, dr = 0.05, dTheta = Math.PI / 36) {
     let rMin = parseFloat(window.rMin) || 0.25;
@@ -166,6 +78,7 @@ function CreateSurfaceData(data, dr = 0.05, dTheta = Math.PI / 36) {
 
     // store positions as array of vec3
     let positions = new Array(numR * numTheta);
+    let texcoords = new Array(numR * numTheta);
     for (let i = 0; i < numR; i++) {
         let r = rMin + i * dr;
         for (let j = 0; j < numTheta; j++) {
@@ -174,6 +87,11 @@ function CreateSurfaceData(data, dr = 0.05, dTheta = Math.PI / 36) {
             let y = (Math.sin(theta) / (2 * r)) + (Math.pow(r, 3) * Math.sin(3 * theta)) / 6;
             let z = r * Math.cos(theta);
             positions[i * numTheta + j] = [x, y, z];
+            
+            // Texture coordinates: u based on r, v based on theta
+            let u = (r - rMin) / (rMax - rMin);
+            let v = theta / (2 * Math.PI);
+            texcoords[i * numTheta + j] = [u, v];
         }
     }
 
@@ -192,11 +110,16 @@ function CreateSurfaceData(data, dr = 0.05, dTheta = Math.PI / 36) {
     }
 
     const nVertices = positions.length;
-    // array to accumulate weighted normals
+    
+    // arrays to accumulate weighted normals and tangents
     let normals = new Array(nVertices);
-    for (let i = 0; i < nVertices; i++) normals[i] = [0, 0, 0];
+    let tangents = new Array(nVertices);
+    for (let i = 0; i < nVertices; i++) {
+        normals[i] = [0, 0, 0];
+        tangents[i] = [0, 0, 0];
+    }
 
-    // helper cross product
+    // helper functions
     function cross(a, b) {
         return [
             a[1]*b[2] - a[2]*b[1],
@@ -204,44 +127,90 @@ function CreateSurfaceData(data, dr = 0.05, dTheta = Math.PI / 36) {
             a[0]*b[1] - a[1]*b[0]
         ];
     }
-    // helper subtract
+    
     function sub(a, b) { return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
-    // accumulate face normal into vertices (face normal not normalized => area-weighted)
+    
+    function addTo(a, b) {
+        a[0] += b[0]; a[1] += b[1]; a[2] += b[2];
+    }
+
+    // accumulate face normals and tangents
     for (let t = 0; t < indices.length; t += 3) {
         const i0 = indices[t], i1 = indices[t+1], i2 = indices[t+2];
         const p0 = positions[i0], p1 = positions[i1], p2 = positions[i2];
-        const e1 = sub(p1, p0), e2 = sub(p2, p0);
-        let fn = cross(e1, e2); // magnitude proportional to area
-        // add fn to each vertex accumulator
-        normals[i0][0] += fn[0]; normals[i0][1] += fn[1]; normals[i0][2] += fn[2];
-        normals[i1][0] += fn[0]; normals[i1][1] += fn[1]; normals[i1][2] += fn[2];
-        normals[i2][0] += fn[0]; normals[i2][1] += fn[1]; normals[i2][2] += fn[2];
+        const uv0 = texcoords[i0], uv1 = texcoords[i1], uv2 = texcoords[i2];
+        
+        // edges of triangle
+        const edge1 = sub(p1, p0);
+        const edge2 = sub(p2, p0);
+        
+        // texture coordinate edges
+        const deltaUV1 = [uv1[0] - uv0[0], uv1[1] - uv0[1]];
+        const deltaUV2 = [uv2[0] - uv0[0], uv2[1] - uv0[1]];
+        
+        // face normal (area-weighted)
+        let fn = cross(edge1, edge2);
+        
+        // tangent calculation
+        const f = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
+        let tangent = [
+            f * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
+            f * (deltaUV2[1] * edge1[1] - deltaUV1[1] * edge2[1]),
+            f * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2])
+        ];
+        
+        // add to vertex accumulators
+        addTo(normals[i0], fn);
+        addTo(normals[i1], fn);
+        addTo(normals[i2], fn);
+        
+        addTo(tangents[i0], tangent);
+        addTo(tangents[i1], tangent);
+        addTo(tangents[i2], tangent);
     }
 
-    // normalize per-vertex normals
+    // normalize per-vertex normals and tangents
     function normalize(v) {
         const len = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
         if (len > 1e-9) return [v[0]/len, v[1]/len, v[2]/len];
         return [0,0,1];
     }
+    
     for (let i = 0; i < nVertices; i++) {
         normals[i] = normalize(normals[i]);
+        tangents[i] = normalize(tangents[i]);
     }
 
-    // pack interleaved attributes: x,y,z, nx,ny,nz
-    const interleaved = new Float32Array(nVertices * 6);
+    // pack data into separate arrays for WebGL
+    const verticesF32 = new Float32Array(nVertices * 3);
+    const normalsF32 = new Float32Array(nVertices * 3);
+    const tangentsF32 = new Float32Array(nVertices * 3);
+    const texcoordsF32 = new Float32Array(nVertices * 2);
+    
     for (let i = 0; i < nVertices; i++) {
-        interleaved[i*6 + 0] = positions[i][0];
-        interleaved[i*6 + 1] = positions[i][1];
-        interleaved[i*6 + 2] = positions[i][2];
-        interleaved[i*6 + 3] = normals[i][0];
-        interleaved[i*6 + 4] = normals[i][1];
-        interleaved[i*6 + 5] = normals[i][2];
+        verticesF32[i*3 + 0] = positions[i][0];
+        verticesF32[i*3 + 1] = positions[i][1];
+        verticesF32[i*3 + 2] = positions[i][2];
+        
+        normalsF32[i*3 + 0] = normals[i][0];
+        normalsF32[i*3 + 1] = normals[i][1];
+        normalsF32[i*3 + 2] = normals[i][2];
+        
+        tangentsF32[i*3 + 0] = tangents[i][0];
+        tangentsF32[i*3 + 1] = tangents[i][1];
+        tangentsF32[i*3 + 2] = tangents[i][2];
+        
+        texcoordsF32[i*2 + 0] = texcoords[i][0];
+        texcoordsF32[i*2 + 1] = texcoords[i][1];
     }
 
-    // pack indices into Uint16Array (assume reasonable tessellation)
-    data.verticesF32 = interleaved;
+    data.verticesF32 = verticesF32;
+    data.normalsF32 = normalsF32;
+    data.tangentsF32 = tangentsF32;
+    data.texcoordsF32 = texcoordsF32;
     data.indicesU16 = new Uint16Array(indices);
     data.vertexCount = nVertices;
     data.indexCount = data.indicesU16.length;
+    
+    return data;
 }

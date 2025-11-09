@@ -1,45 +1,96 @@
 <!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
-
-<title>PA#1</title>
-<style>
-    body {
-        background-color: #EEEEEE;
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PA#3 — Diffuse/Specular/Normal mapping (Tangent-priority GS)</title>
+  <style>
+    body { background: #EEE; font-family: sans-serif; }
+    #controls { margin: 8px 0; }
+    canvas { background: #222; display:block; margin: 0 auto; }
+    .control-group { margin: 10px 0; }
+    .texture-info { 
+        background: #f0f0f0; 
+        padding: 10px; 
+        margin: 10px 0; 
+        border-radius: 5px;
     }
-</style>
-<script id="vertex-shader" type="x-shader/x-vertex"> … </script>
-<script id="fragment-shader" type="x-shader/x-fragment"> … </script>
-
-<script src="./Utils/trackball-rotator.js"></script>
-<script src="./Utils/m4.js"></script>
-<script src="./shader.gpu"></script>
-<script src="./Model.js"></script>
-<script src="./main.js"></script>
-
+  </style>
 </head>
 <body onload="init()">
 
-<h2>A Cube with "Trackball" Mouse Rotation</h2>
+<h2>PA#3 — Diffuse + Specular + Normal map (Gram-Schmidt prioritize TANGENT)</h2>
 
-<p id="message">Drag your mouse on the cube to rotate it.<br>
-(On a touch screen, you can use your finger.)</p>
+<div class="texture-info">
+  <strong>Texture Info:</strong> 
+</div>
 
-<div style="margin-bottom: 10px;">
-  <label for="sliderR">Granularity U (dr): </label>
-  <input type="range" id="sliderR" min="0.05" max="0.5" step="0.01" value="0.1">
-  <span id="valR">0.1</span>
-
-  <br>
-
-  <label for="sliderTheta">Granularity V (dTheta): </label>
-  <input type="range" id="sliderTheta" min="0.1" max="1.0" step="0.05" value="0.2">
-  <span id="valTheta">0.2</span>
+<div id="controls">
+  <div class="control-group">
+    <label>Granularity U (dr):
+      <input id="sliderR" type="range" min="0.05" max="0.5" step="0.01" value="0.1">
+      <span id="valR">0.10</span>
+    </label>
+  </div>
+  <div class="control-group">
+    <label>Granularity V (dTheta):
+      <input id="sliderTheta" type="range" min="0.1" max="1.0" step="0.05" value="0.2">
+      <span id="valTheta">0.20</span>
+    </label>
+  </div>
+  <div class="control-group">
+    <label>rMin:
+      <input id="rMin" type="number" min="0.1" max="0.9" step="0.05" value="0.25">
+    </label>
+    <label>rMax:
+      <input id="rMax" type="number" min="1.0" max="3.0" step="0.1" value="1.0">
+    </label>
+    <button onclick="updateSurface()">Update Surface</button>
+  </div>
 </div>
 
 <div id="canvas-holder">
-   <canvas width="600" height="600" id="webglcanvas" style="background-color:red"></canvas>
+  <canvas id="webglcanvas" width="700" height="700"></canvas>
 </div>
 
+<!-- utilities from lecture -->
+<script src="./Utils/trackball-rotator.js"></script>
+<script src="./Utils/m4.js"></script>
 
-</body></html>
+<!-- app files -->
+<script src="./shader.gpu"></script>
+<script src="./TextureHandler.js"></script>
+<script src="./Model.js"></script>
+<script src="./main.js"></script>
+
+<script>
+function updateSurface() {
+    window.rMin = parseFloat(document.getElementById('rMin').value);
+    window.rMax = parseFloat(document.getElementById('rMax').value);
+    
+    const dr = parseFloat(document.getElementById('sliderR').value);
+    const dTheta = parseFloat(document.getElementById('sliderTheta').value);
+    
+    const data = {};
+    CreateSurfaceData(data, dr, dTheta);
+    
+    surface.BufferData(data.verticesF32, data.normalsF32, data.tangentsF32, data.texcoordsF32, data.indicesU16);
+    draw();
+}
+
+// Initialize slider values
+document.getElementById('sliderR').addEventListener('input', function(e) {
+    document.getElementById('valR').textContent = e.target.value;
+    updateSurface();
+});
+
+document.getElementById('sliderTheta').addEventListener('input', function(e) {
+    document.getElementById('valTheta').textContent = e.target.value;
+    updateSurface();
+});
+
+window.rMin = 0.25;
+window.rMax = 1.0;
+</script>
+
+</body>
+</html>

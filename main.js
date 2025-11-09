@@ -1,247 +1,186 @@
+// main.js
 'use strict';
 
-let gl;                         // The webgl context.
-let surface;                    // A surface model
-let shProgram;                  // A shader program
-let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
-let dr = 0.1;       // Granularity along U
-let dTheta = 0.2;   // Granularity along V
+let gl;
+let surface;
+let shProgram;
+let spaceball;
 
-// Constructor
 function ShaderProgram(name, program) {
     this.name = name;
     this.prog = program;
 
-    // Location of the attribute variable in the shader program.
-    this.iAttribVertex = -1;
-    this.iAttribNormal = -1;
+    this.iAttribVertex = gl.getAttribLocation(program, "vertex");
+    this.iAttribNormal = gl.getAttribLocation(program, "normal");
+    this.iAttribTangent = gl.getAttribLocation(program, "tangent");
+    this.iAttribTexCoords = gl.getAttribLocation(program, "tex");
 
-    // Uniforms
-    this.iModelViewProjectionMatrix = -1;
-    this.iModelViewMatrix = -1;
-    this.iNormalMatrix = -1;
+    this.iModelViewProjectionMatrix = gl.getUniformLocation(program, "ModelViewProjectionMatrix");
+    this.iModelViewMatrix = gl.getUniformLocation(program, "ModelViewMatrix");
+    this.iNormalMatrix = gl.getUniformLocation(program, "NormalMatrix");
 
-    this.uLightPosEye = -1;
-    this.uAmbientColor = -1;
-    this.uLightColor = -1;
-    this.uSpecularColor = -1;
-    this.uMaterialDiffuse = -1;
-    this.uShininess = -1;
+    this.iDiffuseTex = gl.getUniformLocation(program, "uDiffuseTex");
+    this.iSpecularTex = gl.getUniformLocation(program, "uSpecularTex");
+    this.iNormalMap = gl.getUniformLocation(program, "uNormalMap");
+
+    this.iLightPosEye = gl.getUniformLocation(program, "uLightPosEye");
+    this.iAmbientColor = gl.getUniformLocation(program, "uAmbientColor");
+    this.iLightColor = gl.getUniformLocation(program, "uLightColor");
+    this.iShininess = gl.getUniformLocation(program, "uShininess");
 
     this.Use = function() {
         gl.useProgram(this.prog);
-    }
+    };
 }
 
-
-/* Draws a colored cube, along with a set of coordinate axes.
- * (Note that the use of the above drawPrimitive function is not an efficient
- * way to draw with WebGL.  Here, the geometry is so simple that it doesn't matter.)
- */
-let startTime = performance.now();
+// Function to compute inverse of 3x3 matrix from 4x4 matrix
+function toInverseMat3(mat4) {
+    // Extract upper-left 3x3 part from 4x4 matrix
+    const m00 = mat4[0], m01 = mat4[1], m02 = mat4[2];
+    const m10 = mat4[4], m11 = mat4[5], m12 = mat4[6];
+    const m20 = mat4[8], m21 = mat4[9], m22 = mat4[10];
+    
+    // Compute determinant
+    const det = m00 * (m11 * m22 - m12 * m21) -
+                m01 * (m10 * m22 - m12 * m20) +
+                m02 * (m10 * m21 - m11 * m20);
+    
+    // Return identity matrix if determinant is too small
+    if (Math.abs(det) < 1e-8) {
+        return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    }
+    
+    const invDet = 1.0 / det;
+    
+    // Compute inverse matrix
+    return [
+        (m11 * m22 - m12 * m21) * invDet,
+        (m02 * m21 - m01 * m22) * invDet,
+        (m01 * m12 - m02 * m11) * invDet,
+        (m12 * m20 - m10 * m22) * invDet,
+        (m00 * m22 - m02 * m20) * invDet,
+        (m02 * m10 - m00 * m12) * invDet,
+        (m10 * m21 - m11 * m20) * invDet,
+        (m01 * m20 - m00 * m21) * invDet,
+        (m00 * m11 - m01 * m10) * invDet
+    ];
+}
 
 function draw() {
-    // schedule next frame for animation
-    requestAnimationFrame(draw);
-
-    gl.clearColor(0,0,0,1);
+    // Clear canvas
+    gl.clearColor(0.1, 0.1, 0.1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // Projection
-    let projection = m4.perspective(Math.PI/8, 1, 8, 12);
+    // Setup projection and view matrices
+    const projection = m4.perspective(Math.PI / 8, 1, 8, 12);
+    const modelView = spaceball.getViewMatrix();
+    const translateToPointZero = m4.translation(0, 0, -10);
+    const modelViewMatrix = m4.multiply(translateToPointZero, modelView);
+    const modelViewProjection = m4.multiply(projection, modelViewMatrix);
 
-    // View from trackball
-    let modelView = spaceball.getViewMatrix();
-
-    let rotateToPointZero = m4.axisRotation([0.707,0.707,0], 0.7);
-    let translateToPointZero = m4.translation(0,0,-10);
-
-    // The order you used before: matAccum0 = rotate * modelView, matAccum1 = translate * matAccum0
-    let matAccum0 = m4.multiply(rotateToPointZero, modelView);
-    let matAccum1 = m4.multiply(translateToPointZero, matAccum0);
-
-    // ModelViewMatrix to use in shader (we already included modelview & translate/rotate)
-    let modelViewMatrix = matAccum1;
-
-    // ModelViewProjection
-    let modelViewProjection = m4.multiply(projection, modelViewMatrix);
-
-    // Normal matrix: normal = inverse(transpose(mat3(modelViewMatrix)))
-    // Use m4.inverse and m4.transpose if available in m4.js
-    let invMV = m4.inverse(modelViewMatrix);
-    let transInvMV = m4.transpose(invMV);
-    // Extract upper-left 3x3 into Float32Array (column-major expected by gl.uniformMatrix3fv)
-    let normalMatrix3 = new Float32Array([
-        transInvMV[0], transInvMV[1], transInvMV[2],
-        transInvMV[4], transInvMV[5], transInvMV[6],
-        transInvMV[8], transInvMV[9], transInvMV[10]
-    ]);
-
-    shProgram.Use();
-    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
+    // Set matrix uniforms
     gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, modelViewMatrix);
-    gl.uniformMatrix3fv(shProgram.iNormalMatrix, false, normalMatrix3);
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
+    
+    // Compute and set normal matrix
+    const normalMatrix = toInverseMat3(modelViewMatrix);
+    gl.uniformMatrix3fv(shProgram.iNormalMatrix, false, normalMatrix);
 
-    // animate light: rotate around Y axis in world coordinates relative to origin
-    const now = performance.now();
-    const t = (now - startTime) * 0.001; // seconds
-    const lightRadius = 4.0;
-    const lightY = 2.0;
-    const lx = lightRadius * Math.cos(t);
-    const lz = lightRadius * Math.sin(t);
-    const ly = lightY;
-    // light position in world coordinates (vec4)
-    const lightWorld = [lx, ly, lz, 1.0];
+    // Animated light orbiting around the surface
+    const time = performance.now() / 1000;
+    const lightPosEye = [5 * Math.cos(time), 3.0, 5 * Math.sin(time)];
+    gl.uniform3fv(shProgram.iLightPosEye, lightPosEye);
+    
+    // Lighting parameters
+    gl.uniform3fv(shProgram.iAmbientColor, [0.2, 0.2, 0.2]);
+    gl.uniform3fv(shProgram.iLightColor, [1.0, 1.0, 1.0]);
+    gl.uniform1f(shProgram.iShininess, 64.0);
 
-    // Transform light into eye-space by multiplying with ModelViewMatrix (matAccum1)
-    // matAccum1 is a 4x4 matrix in column-major (m4.js)
-    // multiply matAccum1 * lightWorld:
-    function mulM4v4(m, v) {
-        return [
-            m[0]*v[0] + m[4]*v[1] + m[8]*v[2] + m[12]*v[3],
-            m[1]*v[0] + m[5]*v[1] + m[9]*v[2] + m[13]*v[3],
-            m[2]*v[0] + m[6]*v[1] + m[10]*v[2] + m[14]*v[3],
-            m[3]*v[0] + m[7]*v[1] + m[11]*v[2] + m[15]*v[3]
-        ];
-    }
-    const lightEye = mulM4v4(modelViewMatrix, lightWorld);
-    gl.uniform3fv(shProgram.uLightPosEye, new Float32Array([lightEye[0], lightEye[1], lightEye[2]]));
+    // Set texture units
+    gl.uniform1i(shProgram.iDiffuseTex, 0);
+    gl.uniform1i(shProgram.iSpecularTex, 1);
+    gl.uniform1i(shProgram.iNormalMap, 2);
 
-    // We already set material/light uniforms in initGL; but you can update them here if needed
-
+    // Draw the surface
     surface.Draw();
 }
 
-function updateSurface() {
-    let data = {};
-    CreateSurfaceData(data, dr, dTheta);
-
-    surface.BufferData(data.verticesF32, data.indicesU16);
-
-    draw();
-}
-
-/* Initialize the WebGL context. Called from init() */
 function initGL() {
-    let prog = createProgram( gl, vertexShaderSource, fragmentShaderSource );
-
-    shProgram = new ShaderProgram('Phong', prog);
+    // Create and use shader program
+    const prog = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+    shProgram = new ShaderProgram('PhongTex', prog);
     shProgram.Use();
 
-    shProgram.iAttribVertex              = gl.getAttribLocation(prog, "vertex");
-    shProgram.iAttribNormal              = gl.getAttribLocation(prog, "normal");
+    // Generate surface data
+    const data = {};
+    CreateSurfaceData(data);
 
-    shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
-    shProgram.iModelViewMatrix           = gl.getUniformLocation(prog, "ModelViewMatrix");
-    shProgram.iNormalMatrix              = gl.getUniformLocation(prog, "NormalMatrix");
-
-    shProgram.uLightPosEye               = gl.getUniformLocation(prog, "uLightPosEye");
-    shProgram.uAmbientColor              = gl.getUniformLocation(prog, "uAmbientColor");
-    shProgram.uLightColor                = gl.getUniformLocation(prog, "uLightColor");
-    shProgram.uSpecularColor             = gl.getUniformLocation(prog, "uSpecularColor");
-    shProgram.uMaterialDiffuse           = gl.getUniformLocation(prog, "uMaterialDiffuse");
-    shProgram.uShininess                 = gl.getUniformLocation(prog, "uShininess");
-
-    // default material/light (can be changed)
-    shProgram.Use();
-    gl.uniform3fv(shProgram.uAmbientColor, new Float32Array([0.12, 0.12, 0.12]));
-    gl.uniform3fv(shProgram.uLightColor,   new Float32Array([1.0, 1.0, 1.0]));
-    gl.uniform3fv(shProgram.uSpecularColor,new Float32Array([1.0, 1.0, 1.0]));
-    gl.uniform3fv(shProgram.uMaterialDiffuse,new Float32Array([0.9, 0.6, 0.3]));
-    gl.uniform1f(shProgram.uShininess, 32.0);
-
-    let data = {};
-    CreateSurfaceData(data, dr, dTheta);
-
+    // Create and buffer surface model
     surface = new Model('Surface');
-    surface.BufferData(data.verticesF32, data.indicesU16);
+    surface.BufferData(data.verticesF32, data.normalsF32, data.tangentsF32, data.texcoordsF32, data.indicesU16);
 
+    // Load textures (fallback textures will be used if files not found)
+    surface.idTextureDiffuse = LoadTexture('Utils/textures/diffuse.jpg');
+    surface.idTextureSpecular = LoadTexture('Utils/textures/specular.jpg');
+    surface.idTextureNormal = LoadTexture('Utils/textures/normal.jpg');
+
+    // Enable depth testing
     gl.enable(gl.DEPTH_TEST);
 }
 
-
-/* Creates a program for use in the WebGL context gl, and returns the
- * identifier for that program.  If an error occurs while compiling or
- * linking the program, an exception of type Error is thrown.  The error
- * string contains the compilation or linking error.  If no error occurs,
- * the program identifier is the return value of the function.
- * The second and third parameters are strings that contain the
- * source code for the vertex shader and for the fragment shader.
- */
-function createProgram(gl, vShader, fShader) {
-    let vsh = gl.createShader( gl.VERTEX_SHADER );
-    gl.shaderSource(vsh,vShader);
-    gl.compileShader(vsh);
-    if ( ! gl.getShaderParameter(vsh, gl.COMPILE_STATUS) ) {
-        throw new Error("Error in vertex shader:  " + gl.getShaderInfoLog(vsh));
-     }
-    let fsh = gl.createShader( gl.FRAGMENT_SHADER );
-    gl.shaderSource(fsh, fShader);
-    gl.compileShader(fsh);
-    if ( ! gl.getShaderParameter(fsh, gl.COMPILE_STATUS) ) {
-       throw new Error("Error in fragment shader:  " + gl.getShaderInfoLog(fsh));
+function init() {
+    const canvas = document.getElementById("webglcanvas");
+    gl = canvas.getContext("webgl");
+    if (!gl) {
+        alert("WebGL not supported!");
+        return;
     }
-    let prog = gl.createProgram();
-    gl.attachShader(prog,vsh);
-    gl.attachShader(prog, fsh);
-    gl.linkProgram(prog);
-    if ( ! gl.getProgramParameter( prog, gl.LINK_STATUS) ) {
-       throw new Error("Link error in program:  " + gl.getProgramInfoLog(prog));
+    
+    try {
+        initGL();
+        spaceball = new TrackballRotator(canvas, draw, 0);
+        draw();
+    } catch (error) {
+        console.error("Error during initialization:", error);
+        alert("Error initializing WebGL application: " + error.message);
     }
-    return prog;
 }
 
-
-/**
- * initialization function that will be called when the page has loaded
- */
-function init() {
-    let canvas;
-    try {
-        canvas = document.getElementById("webglcanvas");
-        gl = canvas.getContext("webgl");
-        if ( ! gl ) {
-            throw "Browser does not support WebGL";
-        }
-    }
-    catch (e) {
-        document.getElementById("canvas-holder").innerHTML =
-            "<p>Sorry, could not get a WebGL graphics context.</p>";
-        return;
-    }
-    try {
-        initGL();  // initialize the WebGL graphics context
-    }
-    catch (e) {
-        document.getElementById("canvas-holder").innerHTML =
-            "<p>Sorry, could not initialize the WebGL graphics context: " + e + "</p>";
-        return;
+function createProgram(gl, vShader, fShader) {
+    const vsh = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vsh, vShader);
+    gl.compileShader(vsh);
+    if (!gl.getShaderParameter(vsh, gl.COMPILE_STATUS)) {
+        const error = gl.getShaderInfoLog(vsh);
+        gl.deleteShader(vsh);
+        throw new Error('Vertex shader compilation error: ' + error);
     }
 
-    spaceball = new TrackballRotator(canvas, draw, 0);
+    const fsh = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fsh, fShader);
+    gl.compileShader(fsh);
+    if (!gl.getShaderParameter(fsh, gl.COMPILE_STATUS)) {
+        const error = gl.getShaderInfoLog(fsh);
+        gl.deleteShader(fsh);
+        gl.deleteShader(vsh);
+        throw new Error('Fragment shader compilation error: ' + error);
+    }
 
-    // === Sliders for granularity control ===
-    const sliderR = document.getElementById("sliderR");
-    const sliderTheta = document.getElementById("sliderTheta");
-    const valR = document.getElementById("valR");
-    const valTheta = document.getElementById("valTheta");
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vsh);
+    gl.attachShader(prog, fsh);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        const error = gl.getProgramInfoLog(prog);
+        gl.deleteProgram(prog);
+        gl.deleteShader(vsh);
+        gl.deleteShader(fsh);
+        throw new Error('Program linking error: ' + error);
+    }
 
-    // Initialize display values
-    valR.textContent = dr.toFixed(2);
-    valTheta.textContent = dTheta.toFixed(2);
+    // Clean up shaders after linking
+    gl.deleteShader(vsh);
+    gl.deleteShader(fsh);
 
-    // When user moves slider, update granularity and rebuild surface
-    sliderR.addEventListener("input", () => {
-        dr = parseFloat(sliderR.value);
-        valR.textContent = dr.toFixed(2);
-        updateSurface();
-    });
-
-    sliderTheta.addEventListener("input", () => {
-        dTheta = parseFloat(sliderTheta.value);
-        valTheta.textContent = dTheta.toFixed(2);
-        updateSurface();
-    });
-
-    draw();
+    return prog;
 }

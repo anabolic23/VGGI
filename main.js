@@ -1,10 +1,13 @@
-// main.js
 'use strict';
 
 let gl;
 let surface;
 let shProgram;
 let spaceball;
+
+// Texture transformation variables
+let textureScale = 1.0;
+let texturePivot = [0.5, 0.5]; // Initial pivot point in UV space [u, v]
 
 function ShaderProgram(name, program) {
     this.name = name;
@@ -27,6 +30,10 @@ function ShaderProgram(name, program) {
     this.iAmbientColor = gl.getUniformLocation(program, "uAmbientColor");
     this.iLightColor = gl.getUniformLocation(program, "uLightColor");
     this.iShininess = gl.getUniformLocation(program, "uShininess");
+
+    // New uniforms for texture transformation
+    this.iTextureScale = gl.getUniformLocation(program, "uTextureScale");
+    this.iTexturePivot = gl.getUniformLocation(program, "uTexturePivot");
 
     this.Use = function() {
         gl.useProgram(this.prog);
@@ -96,6 +103,10 @@ function draw() {
     gl.uniform3fv(shProgram.iLightColor, [1.0, 1.0, 1.0]);
     gl.uniform1f(shProgram.iShininess, 64.0);
 
+    // Set texture transformation uniforms
+    gl.uniform1f(shProgram.iTextureScale, textureScale);
+    gl.uniform2fv(shProgram.iTexturePivot, texturePivot);
+
     // Set texture units
     gl.uniform1i(shProgram.iDiffuseTex, 0);
     gl.uniform1i(shProgram.iSpecularTex, 1);
@@ -103,6 +114,54 @@ function draw() {
 
     // Draw the surface
     surface.Draw();
+}
+
+function animate() {
+    draw();
+    requestAnimationFrame(animate);
+}
+
+// Keyboard event handler for texture transformation
+function handleKeyPress(event) {
+    const step = 0.05;
+    const scaleStep = 0.1;
+    
+    switch(event.key.toLowerCase()) {
+        case 'w':
+            // Move pivot up (increase v)
+            texturePivot[1] = Math.min(1.0, texturePivot[1] + step);
+            break;
+        case 's':
+            // Move pivot down (decrease v)
+            texturePivot[1] = Math.max(0.0, texturePivot[1] - step);
+            break;
+        case 'a':
+            // Move pivot left (decrease u)
+            texturePivot[0] = Math.max(0.0, texturePivot[0] - step);
+            break;
+        case 'd':
+            // Move pivot right (increase u)
+            texturePivot[0] = Math.min(1.0, texturePivot[0] + step);
+            break;
+        case 'q':
+            // Scale texture up
+            textureScale = Math.min(3.0, textureScale + scaleStep);
+            break;
+        case 'e':
+            // Scale texture down
+            textureScale = Math.max(0.1, textureScale - scaleStep);
+            break;
+        case 'r':
+            // Reset transformations
+            textureScale = 1.0;
+            texturePivot = [0.5, 0.5];
+            break;
+        default:
+            return; // Ignore other keys
+    }
+    
+    console.log(`Texture Scale: ${textureScale.toFixed(2)}, Pivot: [${texturePivot[0].toFixed(2)}, ${texturePivot[1].toFixed(2)}]`);
+    draw(); // Redraw with new transformations
 }
 
 function initGL() {
@@ -139,7 +198,11 @@ function init() {
     try {
         initGL();
         spaceball = new TrackballRotator(canvas, draw, 0);
-        draw();
+        
+        // Add keyboard event listener
+        window.addEventListener('keydown', handleKeyPress);
+        
+        animate();
     } catch (error) {
         console.error("Error during initialization:", error);
         alert("Error initializing WebGL application: " + error.message);

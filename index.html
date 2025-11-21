@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PA#3 — Diffuse/Specular/Normal mapping (Tangent-priority GS)</title>
+  <title>PA#4 — Texture Transformations</title>
   <style>
     body { background: #EEE; font-family: sans-serif; }
     #controls { margin: 8px 0; }
@@ -14,14 +14,32 @@
         margin: 10px 0; 
         border-radius: 5px;
     }
+    .instructions {
+        background: #e0e0ff;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
+        border-left: 4px solid #6666ff;
+    }
   </style>
 </head>
 <body onload="init()">
 
-<h2>PA#3 — Diffuse + Specular + Normal map (Gram-Schmidt prioritize TANGENT)</h2>
+<h2>PA#4 — Texture Scaling with Pivot Point</h2>
+
+<div class="instructions">
+  <strong>Controls:</strong><br>
+  • <strong>W/S</strong> - Move pivot point up/down (V axis)<br>
+  • <strong>A/D</strong> - Move pivot point left/right (U axis)<br>
+  • <strong>Q/E</strong> - Scale texture up/down<br>
+  • <strong>R</strong> - Reset transformations<br>
+  • <strong>Mouse Drag</strong> - Rotate view
+</div>
 
 <div class="texture-info">
   <strong>Texture Info:</strong> 
+  Current Scale: <span id="scaleValue">1.00</span> | 
+  Pivot: [<span id="pivotU">0.50</span>, <span id="pivotV">0.50</span>]
 </div>
 
 <div id="controls">
@@ -77,6 +95,13 @@ function updateSurface() {
     draw();
 }
 
+// Function to update UI display
+function updateTextureInfo() {
+    document.getElementById('scaleValue').textContent = textureScale.toFixed(2);
+    document.getElementById('pivotU').textContent = texturePivot[0].toFixed(2);
+    document.getElementById('pivotV').textContent = texturePivot[1].toFixed(2);
+}
+
 // Initialize slider values
 document.getElementById('sliderR').addEventListener('input', function(e) {
     document.getElementById('valR').textContent = e.target.value;
@@ -87,6 +112,9 @@ document.getElementById('sliderTheta').addEventListener('input', function(e) {
     document.getElementById('valTheta').textContent = e.target.value;
     updateSurface();
 });
+
+// Update texture info periodically
+setInterval(updateTextureInfo, 100);
 
 window.rMin = 0.25;
 window.rMax = 1.0;
